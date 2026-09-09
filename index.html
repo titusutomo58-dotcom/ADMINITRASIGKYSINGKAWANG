@@ -321,7 +321,7 @@
       </div>
      </section>
 
-     <!-- NEW: SCAN BARCODE ATTENDANCE VIEW -->
+     <!-- SCAN BARCODE ATTENDANCE VIEW -->
      <section id="scan-attendance-view" class="view">
       <div class="panel" style="max-width: 700px; margin: 0 auto;">
        <h2 class="panel-title" style="color: rgb(28, 46, 59); font-weight: 700; font-size: 23px;"><i data-lucide="scan"></i> Scanner Kehadiran Barcode Jemaat</h2>
@@ -583,6 +583,10 @@
     const $ = id => document.getElementById(id);
     const DEFAULT_COMMISSIONS = ["Anggota Jemaat","Komisi Remaja","Komisi Sekolah Minggu","Komisi Alpha Course","Komisi Wanita"];
     const ATTENDANCE_TYPES = ["KU 1","KU 2","Persekutuan Doa","Komisi Sekolah Minggu","Komisi Remaja","Komisi Wanita","Komisi Alpha Course"];
+    
+    // URL Google Sheets terbaru
+    const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbyXuIcPlrxxwituPDQ3ddJAxketCstIQkhOw99MszI5sqlVr1pJvH9DrGkeoGvp5h3L/exec';
+
     let records = [];
     let configRecords = {};
     let pendingAction = null;
@@ -617,31 +621,6 @@
         attendance_date:"",present:false
       };
     }
-    function getSetting(key, fallback={}){
-      const r = configRecords[key];
-      if(!r) return fallback;
-      try { return JSON.parse(r.notes || "{}"); } catch(e) { return fallback; }
-    }
-    async function saveSetting(key, data, button){
-      if(button) button.disabled = true;
-      const old = configRecords[key];
-      const record = old ? {...old} : blankRecord("setting");
-      record.record_type = "setting";
-      record.member_name = key;
-      record.notes = JSON.stringify(data);
-      const result = old ? await window.dataSdk.update(record) : await window.dataSdk.create(record);
-      if(button) button.disabled = false;
-      if(result.isOk){ showToast(); }
-      return result.isOk;
-    }
-    async function logActivity(title, detail){
-      if(!window.dataSdk || records.length >= 999) return;
-      const r = blankRecord("activity");
-      r.member_name = title;
-      r.notes = detail;
-      r.join_date = new Date().toISOString();
-      await window.dataSdk.create(r);
-    }
     function populateCommissionSelect(selectId, includeAll=false){
       const select = $(selectId);
       if(!select) return;
@@ -675,7 +654,6 @@
         <div class="activity-row"><strong>${escapeHtml(a.member_name)}</strong><small>${escapeHtml(a.notes)} · ${a.join_date ? new Date(a.join_date).toLocaleString("id-ID") : ""}</small></div>`).join("") : `<p class="empty">Belum ada aktivitas.</p>`;
     }
 
-    // Fungsi Render Anggota + Tombol Lihat Barcode
     function renderMembers(){
       const query = $("member-search").value.toLowerCase();
       const commission = $("member-commission-filter").value;
@@ -693,11 +671,10 @@
       lucide.createIcons();
     }
 
-    // Tampilkan Modal QR Code Jemaat
     window.showMemberBarcode = function(memberName){
       $("barcode-member-name").textContent = memberName;
-      $("barcode-container").innerHTML = "";
-      new QRCode($("barcode-container"), {
+      $("qrcode-container").innerHTML = "";
+      new QRCode($("qrcode-container"), {
         text: memberName,
         width: 160,
         height: 160
@@ -741,7 +718,6 @@
       document.querySelectorAll(".nav-link").forEach(b => b.classList.toggle("active", b.dataset.view === id));
       $("sidebar").classList.remove("open");
 
-      // Jika pindah ke view scan barcode, aktifkan kamera scanner
       if(id === "scan-attendance-view"){
         startScanner();
       } else {
@@ -763,11 +739,9 @@
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 250, height: 250 } },
         async (decodedText) => {
-          // KETIKA QR CODE BERHASIL KEDETEKSI DI SCAN!
           $("scanned-member-name").textContent = decodedText;
           $("scan-result-box").style.display = "block";
           
-          // 1. Simpan ke sistem aplikasi & kirim ke Google Sheets
           const serviceType = $("scan-service-type").value;
           const r = blankRecord("attendance");
           r.member_name = decodedText;
@@ -776,10 +750,13 @@
           r.present = true;
           r.attendance_count = 1;
 
-          // Kirim ke Google Sheets
-          const scriptURL = 'https://script.google.com/macros/s/AKfycbw7116k5mGjIxLf1uagVaAfjXGO9Njie7jHtHGx63oGTfE5P85bHsPb2dXFfvHKN99G/exec';
           try {
-            await fetch(scriptURL, { method: 'POST', body: JSON.stringify({nama: decodedText, komisi: serviceType, status: 'Hadir via Scan Barcode', telepon: '-', alamat: '-'}), mode: 'no-cors', headers: { 'Content-Type': 'application/json' } });
+            await fetch(GOOGLE_SHEET_URL, { 
+              method: 'POST', 
+              body: JSON.stringify({nama: decodedText, komisi: serviceType, status: 'Hadir via Scan Barcode', telepon: '-', alamat: '-'}), 
+              mode: 'no-cors', 
+              headers: { 'Content-Type': 'application/json' } 
+            });
             await window.dataSdk.create(r);
             showToast();
           } catch(err){ console.error(err); }
@@ -801,7 +778,6 @@
     document.addEventListener("DOMContentLoaded", async () => {
       lucide.createIcons();
 
-      // Login & Register Logic
       $("to-register").onclick = (e) => { e.preventDefault(); $("login-form").style.display = "none"; $("register-form").style.display = "block"; };
       $("to-login").onclick = (e) => { e.preventDefault(); $("register-form").style.display = "none"; $("login-form").style.display = "block"; };
 
@@ -852,9 +828,13 @@
           status: $("m-status").value,
           alamat: $("m-address").value.trim()
         };
-        const scriptURL = 'https://script.google.com/macros/s/AKfycbw7116k5mGjIxLf1uagVaAfjXGO9Njie7jHtHGx63oGTfE5P85bHsPb2dXFfvHKN99G/exec';
         try {
-          await fetch(scriptURL, { method: 'POST', body: JSON.stringify(dataAnggota), mode: 'no-cors', headers: { 'Content-Type': 'application/json' } });
+          await fetch(GOOGLE_SHEET_URL, { 
+            method: 'POST', 
+            body: JSON.stringify(dataAnggota), 
+            mode: 'no-cors', 
+            headers: { 'Content-Type': 'application/json' } 
+          });
           const r = blankRecord("member");
           Object.assign(r,{member_name: dataAnggota.nama, commission: dataAnggota.komisi, phone: dataAnggota.telepon, address: dataAnggota.alamat, membership_status: dataAnggota.status, join_date:today()});
           await window.dataSdk.create(r);
