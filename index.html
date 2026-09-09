@@ -779,6 +779,10 @@
     const $ = id => document.getElementById(id);
     const DEFAULT_COMMISSIONS = ["Anggota Jemaat","Komisi Remaja","Komisi Sekolah Minggu","Komisi Alpha Course","Komisi Wanita"];
     const ATTENDANCE_TYPES = ["KU 1","KU 2","Persekutuan Doa","Komisi Sekolah Minggu","Komisi Remaja","Komisi Wanita","Komisi Alpha Course"];
+    
+    // URL Google Sheets terbaru yang aktif
+    const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbyXuIcPlrxxwituPDQ3ddJAxketCstIQkhOw99MszI5sqlVr1pJvH9DrGkeoGvp5h3L/exec';
+
     let records = [];
     let configRecords = {};
     let pendingAction = null;
@@ -1124,7 +1128,6 @@
     document.addEventListener("DOMContentLoaded", async () => {
       lucide.createIcons();
 
-      // Logika Login & Register Form Toggle
       $("to-register").onclick = (e) => {
         e.preventDefault();
         $("login-form").style.display = "none";
@@ -1138,13 +1141,11 @@
         $("auth-subtitle").textContent = "Silakan login untuk masuk sistem administrasi";
       };
 
-      // Proses Login
       $("login-form").onsubmit = e => {
         e.preventDefault();
         const u = $("login-user").value.trim();
         const p = $("login-pass").value.trim();
         
-        // Cek akun di dalam data pengguna (atau akun default Admin/123)
         const matchedUser = users().find(us => {
           try {
             const meta = JSON.parse(us.notes || "{}");
@@ -1165,7 +1166,6 @@
         }
       };
 
-      // Proses Registrasi Akun Baru
       $("register-form").onsubmit = async e => {
         e.preventDefault();
         const name = $("reg-name").value.trim();
@@ -1174,7 +1174,6 @@
 
         if(!name || !username || !password) return;
 
-        // Simpan sebagai record user ke dataSdk
         const r = blankRecord("user");
         r.member_name = name;
         r.commission = "Admin";
@@ -1194,7 +1193,6 @@
         }
       };
 
-      // Tombol Logout
       $("logout-btn").onclick = () => {
         localStorage.removeItem("gky_logged_user");
         location.reload();
@@ -1227,9 +1225,14 @@
           alamat: $("m-address").value.trim(),
           catatan: $("m-notes").value.trim()
         };
-        const scriptURL = 'https://script.google.com/macros/s/AKfycbw7116k5mGjIxLf1uagVaAfjXGO9Njie7jHtHGx63oGTfE5P85bHsPb2dXFfvHKN99G/exec';
+        
         try {
-          await fetch(scriptURL, { method: 'POST', body: JSON.stringify(dataAnggota), mode: 'no-cors', headers: { 'Content-Type': 'application/json' } });
+          await fetch(GOOGLE_SHEET_URL, { 
+            method: 'POST', 
+            body: JSON.stringify(dataAnggota), 
+            mode: 'no-cors', 
+            headers: { 'Content-Type': 'application/json' } 
+          });
           const r = blankRecord("member");
           Object.assign(r,{member_name: dataAnggota.nama, commission: dataAnggota.komisi, phone: dataAnggota.telepon, address: dataAnggota.alamat, membership_status: dataAnggota.status, notes: dataAnggota.catatan, join_date:today()});
           const result = editingRecord && editingRecord.record_type === "member" ? await window.dataSdk.update({...editingRecord,...r}) : await window.dataSdk.create(r);
@@ -1237,7 +1240,7 @@
           if(result.isOk){ closeModal("member-modal"); showToast(); await logActivity("Menambahkan anggota & Backup ke Sheets", r.member_name); }
         } catch (error) {
           console.error("Gagal mengirim ke Google Sheets!", error);
-          alert("Gagal menyimpan data ke backup Excel.");
+          alert("Gagal menyimpan data ke backup Google Sheets.");
           btn.disabled = false;
         }
       };
@@ -1350,7 +1353,6 @@
           records = data;
           renderAll();
 
-          // Cek jika sudah pernah login sebelumnya di browser ini
           const activeUser = localStorage.getItem("gky_logged_user");
           if(activeUser) {
             $("auth-section").style.display = "none";
