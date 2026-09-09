@@ -780,7 +780,7 @@
     const DEFAULT_COMMISSIONS = ["Anggota Jemaat","Komisi Remaja","Komisi Sekolah Minggu","Komisi Alpha Course","Komisi Wanita"];
     const ATTENDANCE_TYPES = ["KU 1","KU 2","Persekutuan Doa","Komisi Sekolah Minggu","Komisi Remaja","Komisi Wanita","Komisi Alpha Course"];
     
-    // URL Google Sheets terbaru yang aktif
+    // URL Google Sheets Aktif Anda
     const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbyXuIcPlrxxwituPDQ3ddJAxketCstIQkhOw99MszI5sqlVr1pJvH9DrGkeoGvp5h3L/exec';
 
     let records = [];
@@ -1214,9 +1214,12 @@
       $("member-search").oninput = renderMembers;
       $("member-commission-filter").onchange = renderMembers;
 
+      // Integrasi Form Member ke Google Sheets & Backend
       $("member-form").onsubmit = async e => {
         e.preventDefault();
-        const btn = $("member-save"); btn.disabled = true;
+        const btn = $("member-save"); 
+        btn.disabled = true;
+
         const dataAnggota = {
           nama: $("m-name").value.trim(),
           komisi: $("m-commission").value,
@@ -1227,17 +1230,37 @@
         };
         
         try {
+          // Mengirim data ke Google Sheets menggunakan fetch dengan mode no-cors
           await fetch(GOOGLE_SHEET_URL, { 
             method: 'POST', 
             body: JSON.stringify(dataAnggota), 
             mode: 'no-cors', 
             headers: { 'Content-Type': 'application/json' } 
           });
+
           const r = blankRecord("member");
-          Object.assign(r,{member_name: dataAnggota.nama, commission: dataAnggota.komisi, phone: dataAnggota.telepon, address: dataAnggota.alamat, membership_status: dataAnggota.status, notes: dataAnggota.catatan, join_date:today()});
-          const result = editingRecord && editingRecord.record_type === "member" ? await window.dataSdk.update({...editingRecord,...r}) : await window.dataSdk.create(r);
-          editingRecord = null; btn.disabled = false;
-          if(result.isOk){ closeModal("member-modal"); showToast(); await logActivity("Menambahkan anggota & Backup ke Sheets", r.member_name); }
+          Object.assign(r, {
+            member_name: dataAnggota.nama, 
+            commission: dataAnggota.komisi, 
+            phone: dataAnggota.telepon, 
+            address: dataAnggota.alamat, 
+            membership_status: dataAnggota.status, 
+            notes: dataAnggota.catatan, 
+            join_date: today()
+          });
+
+          const result = editingRecord && editingRecord.record_type === "member" 
+            ? await window.dataSdk.update({...editingRecord, ...r}) 
+            : await window.dataSdk.create(r);
+
+          editingRecord = null; 
+          btn.disabled = false;
+
+          if(result.isOk){ 
+            closeModal("member-modal"); 
+            showToast(); 
+            await logActivity("Menambahkan anggota & Backup ke Sheets", r.member_name); 
+          }
         } catch (error) {
           console.error("Gagal mengirim ke Google Sheets!", error);
           alert("Gagal menyimpan data ke backup Google Sheets.");
